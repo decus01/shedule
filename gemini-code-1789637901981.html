@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>일정 관리 캘린더 (발주 · 출고 · 기타)</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --order-color: #2563eb;
+      --shipping-color: #059669;
+      --etc-color: #d97706;
+      --mixed-color: #475569;
+      --saturday-color: #2563eb;
+      --sunday-holiday-color: #ef4444;
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #1e293b;
+      --text-sub: #64748b;
+      --border: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 950px;
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 20px;
+      background: var(--card-bg);
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        grid-template-columns: 1fr;
+        padding: 16px;
+      }
+    }
+
+    /* 캘린더 영역 */
+    .calendar-section {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .calendar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .calendar-header h2 {
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .nav-btn {
+      background: none;
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.2s;
+    }
+
+    .nav-btn:hover {
+      background: #f1f5f9;
+    }
+
+    .weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.85rem;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .days-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin-top: 8px;
+    }
+
+    .day-cell {
+      min-height: 65px;
+      border-radius: 8px;
+      padding: 6px 2px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .day-cell:hover {
+      background-color: #f1f5f9;
+    }
+
+    .day-cell.selected {
+      border-color: var(--primary);
+      background-color: #eff6ff;
+    }
+
+    .day-cell.other-month {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+    .day-number {
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 4px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text-main);
+    }
+
+    /* 토요일 파란색 / 일요일 및 공휴일 빨간색 */
+    .day-cell.saturday .day-number {
+      color: var(--saturday-color);
+    }
+
+    .day-cell.sunday .day-number,
+    .day-cell.holiday .day-number {
+      color: var(--sunday-holiday-color);
+    }
+
+    /* 오늘 날짜 표시 */
+    .day-cell.today .day-number {
+      background-color: var(--primary);
+      color: white !important;
+    }
+
+    /* 숫자 카운트 뱃지 */
+    .day-count-badge {
+      margin-top: 4px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      border-radius: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    }
+
+    /* 상세 및 등록 영역 */
+    .detail-section {
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border);
+      padding-left: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .detail-section {
+        border-left: none;
+        border-top: 1px solid var(--border);
+        padding-left: 0;
+        padding-top: 20px;
+      }
+    }
+
+    .detail-header {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--text-main);
+    }
+
+    /* 입력 폼 */
+    .schedule-form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding: 14px;
+      background: #f8fafc;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .type-selector {
+      display: flex;
+      gap: 8px;
+    }
+
+    .type-selector label {
+      flex: 1;
+      text-align: center;
+      padding: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      background: white;
+      transition: all 0.2s;
+    }
+
+    .type-selector input[type="radio"] {
+      display: none;
+    }
+
+    .type-selector label:has(input[value="발주"]:checked) {
+      background-color: var(--order-color);
+      color: white;
+      border-color: var(--order-color);
+    }
+    .type-selector label:has(input[value="출고"]:checked) {
+      background-color: var(--shipping-color);
+      color: white;
+      border-color: var(--shipping-color);
+    }
+    .type-selector label:has(input[value="기타사항"]:checked) {
+      background-color: var(--etc-color);
+      color: white;
+      border-color: var(--etc-color);
+    }
+
+    .schedule-input {
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .schedule-input:focus {
+      border-color: var(--primary);
+    }
+
+    .add-btn {
+      background-color: var(--text-main);
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: opacity 0.2s;
+    }
+
+    .add-btn:hover {
+      opacity: 0.9;
+    }
+
+    /* 일정 목록 & 드래그 */
+    .schedule-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 440px;
+      padding-right: 2px;
+    }
+
+    .schedule-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+      gap: 8px;
+      transition: background-color 0.15s, transform 0.15s;
+      user-select: none;
+    }
+
+    .schedule-item.dragging {
+      opacity: 0.4;
+      background: #e2e8f0;
+      border-style: dashed;
+    }
+
+    .schedule-item.drag-over {
+      border-top: 2px solid var(--primary);
+    }
+
+    .drag-handle {
+      cursor: grab;
+      color: var(--text-sub);
+      font-size: 1.1rem;
+      padding: 2px 4px;
+      display: flex;
+      align-items: center;
+      touch-action: none;
+    }
+
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+
+    .item-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow: hidden;
+      flex: 1;
+    }
+
+    .item-badge {
+      font-size: 0.75rem;
+      padding: 3px 6px;
+      border-radius: 4px;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .type-order { background-color: var(--order-color); }
+    .type-shipping { background-color: var(--shipping-color); }
+    .type-etc { background-color: var(--etc-color); }
+
+    .item-text {
+      font-size: 0.9rem;
+      word-break: break-all;
+    }
+
+    .item-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      transition: background 0.15s;
+    }
+
+    .icon-btn:hover {
+      background: #f1f5f9;
+      color: var(--text-main);
+    }
+
+    .icon-btn.delete:hover {
+      background: #fee2e2;
+      color: #ef4444;
+      border-color: #fca5a5;
+    }
+
+    /* 수정 폼 */
+    .edit-form-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .edit-inputs-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .edit-select {
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      outline: none;
+      background: white;
+    }
+
+    .edit-text-input {
+      flex: 1;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    .edit-actions-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 6px;
+    }
+
+    .save-btn {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .cancel-btn {
+      background-color: #f1f5f9;
+      color: var(--text-sub);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .empty-msg {
+      text-align: center;
+      color: var(--text-sub);
+      font-size: 0.85rem;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- 왼쪽: 캘린더 영역 -->
+    <div class="calendar-section">
+      <div class="calendar-header">
+        <h2 id="calendarTitle">달력</h2>
+        <div>
+          <button class="nav-btn" id="prevBtn">&lt;</button>
+          <button class="nav-btn" id="todayBtn">오늘</button>
+          <button class="nav-btn" id="nextBtn">&gt;</button>
+        </div>
+      </div>
+      <div class="weekdays">
+        <div style="color: var(--sunday-holiday-color);">일</div>
+        <div>월</div>
+        <div>화</div>
+        <div>수</div>
+        <div>목</div>
+        <div>금</div>
+        <div style="color: var(--saturday-color);">토</div>
+      </div>
+      <div class="days-grid" id="daysGrid"></div>
+    </div>
+
+    <!-- 오른쪽: 상세 목록 및 순서 관리 -->
+    <div class="detail-section">
+      <h3 class="detail-header" id="selectedDateTitle">일정 목록</h3>
+
+      <!-- 일정 등록 폼 -->
+      <form class="schedule-form" id="scheduleForm">
+        <div class="type-selector">
+          <label>
+            <input type="radio" name="scheduleType" value="발주" checked>
+            <span>발주</span>
+          </label>
+          <label>
+            <input type="radio" name="scheduleType" value="출고">
+            <span>출고</span>
+          </label>
+          <label>
+            <input type="radio" name="scheduleType" value="기타사항">
+            <span>기타사항</span>
+          </label>
+        </div>
+        <input type="text" id="scheduleText" class="schedule-input" placeholder="품목명, 수량, 메모 등을 입력하세요" required>
+        <button type="submit" class="add-btn">일정 추가</button>
+      </form>
+
+      <!-- 등록된 일정 리스트 -->
+      <div class="schedule-list" id="scheduleList"></div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'daily_schedule_data';
+
+    // 대한민국 공휴일 데이터 (매년 고정 공휴일 및 주요 연도별 명절/대체공휴일)
+    const HOLIDAYS = {
+      fixed: ['01-01', '03-01', '05-05', '06-06', '08-15', '10-03', '10-09', '12-25'],
+      custom: {
+        // 2025년
+        '2025-01-28': '설날 연휴', '2025-01-29': '설날', '2025-01-30': '설날 연휴',
+        '2025-03-03': '대체공휴일', '2025-05-06': '대체공휴일',
+        '2025-10-05': '추석 연휴', '2025-10-06': '추석', '2025-10-07': '추석 연휴', '2025-10-08': '대체공휴일',
+        // 2026년
+        '2026-02-16': '설날 연휴', '2026-02-17': '설날', '2026-02-18': '설날 연휴',
+        '2026-03-02': '대체공휴일', '2026-05-24': '부처님오신날', '2026-05-25': '대체공휴일',
+        '2026-08-17': '대체공휴일', '2026-09-24': '추석 연휴', '2026-09-25': '추석',
+        '2026-09-26': '추석 연휴', '2026-09-28': '대체공휴일', '2026-10-05': '대체공휴일',
+        // 2027년
+        '2027-02-06': '설날 연휴', '2027-02-07': '설날', '2027-02-08': '설날 연휴', '2027-02-09': '대체공휴일',
+        '2027-05-13': '부처님오신날', '2027-08-16': '대체공휴일',
+        '2027-09-14': '추석 연휴', '2027-09-15': '추석', '2027-09-16': '추석 연휴', '2027-10-04': '대체공휴일',
+        // 2028년
+        '2028-01-26': '설날 연휴', '2028-01-27': '설날', '2028-01-28': '설날 연휴',
+        '2028-05-02': '부처님오신날', '2028-10-02': '추석 연휴', '2028-10-03': '추석',
+        '2028-10-04': '추석 연휴', '2028-10-05': '대체공휴일'
+      }
+    };
+
+    function isHoliday(year, month, day) {
+      const m = String(month + 1).padStart(2, '0');
+      const d = String(day).padStart(2, '0');
+      const dateStr = `${year}-${m}-${d}`;
+      const mmdd = `${m}-${d}`;
+      return HOLIDAYS.fixed.includes(mmdd) || !!HOLIDAYS.custom[dateStr];
+    }
+
+    let currentDate = new Date();
+    let selectedDateStr = formatDateKey(new Date());
+    let editingIndex = null;
+
+    function loadData() {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : {};
+    }
+
+    function saveData(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function formatDateKey(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    // 캘린더 화면 렌더링
+    function renderCalendar() {
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      document.getElementById('calendarTitle').textContent = `${year}년 ${month + 1}월`;
+
+      const firstDayIndex = new Date(year, month, 1).getDay();
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const prevLastDay = new Date(year, month, 0).getDate();
+
+      const daysGrid = document.getElementById('daysGrid');
+      daysGrid.innerHTML = '';
+
+      const schedules = loadData();
+      const todayStr = formatDateKey(new Date());
+
+      // 지난달 날짜
+      for (let i = firstDayIndex; i > 0; i--) {
+        const prevDay = prevLastDay - i + 1;
+        const cell = document.createElement('div');
+        cell.className = 'day-cell other-month';
+        cell.innerHTML = `<span class="day-number">${prevDay}</span>`;
+        daysGrid.appendChild(cell);
+      }
+
+      // 이번달 날짜
+      for (let day = 1; day <= lastDay; day++) {
+        const thisDate = new Date(year, month, day);
+        const dateStr = formatDateKey(thisDate);
+        const dayOfWeek = thisDate.getDay();
+
+        const cell = document.createElement('div');
+        cell.className = 'day-cell';
+
+        // 토요일(파란색), 일요일 및 공휴일(빨간색) 클래스 지정
+        if (dayOfWeek === 6) cell.classList.add('saturday');
+        if (dayOfWeek === 0) cell.classList.add('sunday');
+        if (isHoliday(year, month, day)) cell.classList.add('holiday');
+
+        if (dateStr === todayStr) cell.classList.add('today');
+        if (dateStr === selectedDateStr) cell.classList.add('selected');
+
+        const numberSpan = document.createElement('span');
+        numberSpan.className = 'day-number';
+        numberSpan.textContent = day;
+        cell.appendChild(numberSpan);
+
+        // 일정 개수 뱃지 (숫자만 노출)
+        const daySchedules = schedules[dateStr] || [];
+        if (daySchedules.length > 0) {
+          const countBadge = document.createElement('div');
+          countBadge.className = 'day-count-badge';
+          countBadge.textContent = daySchedules.length;
+
+          const types = [...new Set(daySchedules.map(s => s.type))];
+          if (types.length === 1) {
+            if (types[0] === '발주') countBadge.style.backgroundColor = 'var(--order-color)';
+            else if (types[0] === '출고') countBadge.style.backgroundColor = 'var(--shipping-color)';
+            else if (types[0] === '기타사항') countBadge.style.backgroundColor = 'var(--etc-color)';
+          } else {
+            countBadge.style.backgroundColor = 'var(--mixed-color)';
+          }
+
+          cell.appendChild(countBadge);
+        }
+
+        cell.addEventListener('click', () => {
+          selectedDateStr = dateStr;
+          editingIndex = null;
+          renderCalendar();
+          renderDetail();
+        });
+
+        daysGrid.appendChild(cell);
+      }
+    }
+
+    function getBadgeClass(type) {
+      if (type === '발주') return 'type-order';
+      if (type === '출고') return 'type-shipping';
+      return 'type-etc';
+    }
+
+    // 상세 목록 화면 렌더링
+    function renderDetail() {
+      const parts = selectedDateStr.split('-');
+      document.getElementById('selectedDateTitle').textContent = `${parts[0]}년 ${parseInt(parts[1])}월 ${parseInt(parts[2])}일 일정`;
+
+      const listContainer = document.getElementById('scheduleList');
+      listContainer.innerHTML = '';
+
+      const schedules = loadData();
+      const currentList = schedules[selectedDateStr] || [];
+
+      if (currentList.length === 0) {
+        listContainer.innerHTML = '<div class="empty-msg">등록된 일정이 없습니다.</div>';
+        return;
+      }
+
+      currentList.forEach((item, index) => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'schedule-item';
+        itemEl.dataset.index = index;
+
+        if (editingIndex === index) {
+          itemEl.innerHTML = `
+            <div class="edit-form-box">
+              <div class="edit-inputs-row">
+                <select id="editType_${index}" class="edit-select">
+                  <option value="발주" ${item.type === '발주' ? 'selected' : ''}>발주</option>
+                  <option value="출고" ${item.type === '출고' ? 'selected' : ''}>출고</option>
+                  <option value="기타사항" ${item.type === '기타사항' ? 'selected' : ''}>기타사항</option>
+                </select>
+                <input type="text" id="editText_${index}" class="edit-text-input" value="${escapeHtml(item.text)}">
+              </div>
+              <div class="edit-actions-row">
+                <button type="button" class="cancel-btn" onclick="cancelEdit()">취소</button>
+                <button type="button" class="save-btn" onclick="saveEdit(${index})">저장</button>
+              </div>
+            </div>
+          `;
+        } else {
+          itemEl.setAttribute('draggable', 'true');
+          itemEl.innerHTML = `
+            <div class="drag-handle" title="길게 눌러 드래그">☰</div>
+            <div class="item-content">
+              <span class="item-badge ${getBadgeClass(item.type)}">${item.type}</span>
+              <span class="item-text">${escapeHtml(item.text)}</span>
+            </div>
+            <div class="item-actions">
+              <button class="icon-btn" title="수정" onclick="startEdit(${index})">✏️</button>
+              <button class="icon-btn delete" title="삭제" onclick="deleteSchedule(${index})">&times;</button>
+            </div>
+          `;
+          setupDragAndDropEvents(itemEl, index);
+        }
+
+        listContainer.appendChild(itemEl);
+      });
+    }
+
+    // 드래그 앤 드롭 구현
+    let draggedIndex = null;
+
+    function setupDragAndDropEvents(itemEl, index) {
+      itemEl.addEventListener('dragstart', (e) => {
+        draggedIndex = index;
+        e.dataTransfer.effectAllowed = 'move';
+        itemEl.classList.add('dragging');
+      });
+
+      itemEl.addEventListener('dragend', () => {
+        itemEl.classList.remove('dragging');
+        document.querySelectorAll('.schedule-item').forEach(el => el.classList.remove('drag-over'));
+      });
+
+      itemEl.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        itemEl.classList.add('drag-over');
+      });
+
+      itemEl.addEventListener('dragleave', () => {
+        itemEl.classList.remove('drag-over');
+      });
+
+      itemEl.addEventListener('drop', (e) => {
+        e.preventDefault();
+        itemEl.classList.remove('drag-over');
+        if (draggedIndex !== null && draggedIndex !== index) {
+          reorderItems(draggedIndex, index);
+        }
+      });
+
+      // 모바일 터치 이벤트
+      const handle = itemEl.querySelector('.drag-handle');
+      if (handle) {
+        handle.addEventListener('touchstart', (e) => {
+          draggedIndex = index;
+          itemEl.classList.add('dragging');
+        }, { passive: true });
+
+        handle.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          const touch = e.touches[0];
+          const targetEl = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.schedule-item');
+          
+          document.querySelectorAll('.schedule-item').forEach(el => el.classList.remove('drag-over'));
+          if (targetEl && targetEl !== itemEl) {
+            targetEl.classList.add('drag-over');
+          }
+        }, { passive: false });
+
+        handle.addEventListener('touchend', (e) => {
+          itemEl.classList.remove('dragging');
+          const touch = e.changedTouches[0];
+          const targetEl = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.schedule-item');
+          document.querySelectorAll('.schedule-item').forEach(el => el.classList.remove('drag-over'));
+
+          if (targetEl && targetEl.dataset.index !== undefined) {
+            const targetIndex = parseInt(targetEl.dataset.index, 10);
+            if (draggedIndex !== null && draggedIndex !== targetIndex) {
+              reorderItems(draggedIndex, targetIndex);
+            }
+          }
+          draggedIndex = null;
+        });
+      }
+    }
+
+    function reorderItems(fromIndex, toIndex) {
+      const schedules = loadData();
+      const list = schedules[selectedDateStr];
+      if (!list) return;
+
+      const [movedItem] = list.splice(fromIndex, 1);
+      list.splice(toIndex, 0, movedItem);
+
+      saveData(schedules);
+      renderDetail();
+    }
+
+    // 수정 함수
+    window.startEdit = function(index) {
+      editingIndex = index;
+      renderDetail();
+    };
+
+    window.cancelEdit = function() {
+      editingIndex = null;
+      renderDetail();
+    };
+
+    window.saveEdit = function(index) {
+      const newType = document.getElementById(`editType_${index}`).value;
+      const newText = document.getElementById(`editText_${index}`).value.trim();
+
+      if (!newText) {
+        alert('내용을 입력해 주세요.');
+        return;
+      }
+
+      const schedules = loadData();
+      if (schedules[selectedDateStr] && schedules[selectedDateStr][index]) {
+        schedules[selectedDateStr][index].type = newType;
+        schedules[selectedDateStr][index].text = newText;
+        saveData(schedules);
+      }
+
+      editingIndex = null;
+      renderCalendar();
+      renderDetail();
+    };
+
+    // 추가 및 삭제
+    document.getElementById('scheduleForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const type = document.querySelector('input[name="scheduleType"]:checked').value;
+      const textInput = document.getElementById('scheduleText');
+      const text = textInput.value.trim();
+
+      if (!text) return;
+
+      const schedules = loadData();
+      if (!schedules[selectedDateStr]) {
+        schedules[selectedDateStr] = [];
+      }
+
+      schedules[selectedDateStr].push({ type, text, id: Date.now() });
+      saveData(schedules);
+
+      textInput.value = '';
+      editingIndex = null;
+      renderCalendar();
+      renderDetail();
+    });
+
+    window.deleteSchedule = function(index) {
+      const schedules = loadData();
+      if (schedules[selectedDateStr]) {
+        schedules[selectedDateStr].splice(index, 1);
+        if (schedules[selectedDateStr].length === 0) {
+          delete schedules[selectedDateStr];
+        }
+        saveData(schedules);
+        editingIndex = null;
+        renderCalendar();
+        renderDetail();
+      }
+    };
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>'"]/g, tag => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+      }[tag] || tag));
+    }
+
+    // 월 이동 네비게이션
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      currentDate.setMonth(currentDate.getMonth() - 1);
+      renderCalendar();
+    });
+
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      currentDate.setMonth(currentDate.getMonth() + 1);
+      renderCalendar();
+    });
+
+    document.getElementById('todayBtn').addEventListener('click', () => {
+      currentDate = new Date();
+      selectedDateStr = formatDateKey(currentDate);
+      editingIndex = null;
+      renderCalendar();
+      renderDetail();
+    });
+
+    renderCalendar();
+    renderDetail();
+  </script>
+</body>
+</html>
